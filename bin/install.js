@@ -84,6 +84,24 @@ function stripClaudeFrontmatter(content) {
   return lines.slice(end + 1).join('\n');
 }
 
+// Claude Code pre-runs the `!`command`` lines under "## Session context" and
+// substitutes their output before the model ever sees the file — that's a
+// Claude Code-specific mechanic. Other agents (Cursor, Codex, Antigravity,
+// Gemini CLI) just see the literal "!`date +%F`" text, since they don't
+// pre-execute anything. Insert an explicit instruction telling the agent to
+// run those commands itself, right after the heading, so the skill still
+// works instead of silently getting stale/wrong context.
+function addSessionContextNote(content) {
+  const note =
+    'Claude Code pre-runs the commands below (the lines starting with `!`) ' +
+    'and substitutes their real output before this reaches the model. Your ' +
+    "agent likely doesn't do that automatically — if you're reading literal " +
+    'shell syntax instead of real output, run each of those commands ' +
+    'yourself right now (via your shell/terminal tool) before continuing, ' +
+    'and use the actual output as the context it describes.';
+  return content.replace(/^(## Session context)$/m, `$1\n\n${note}`);
+}
+
 function listSkillDirs() {
   return fs
     .readdirSync(SKILLS_SRC, { withFileTypes: true })
@@ -112,7 +130,8 @@ function writeStrippedSkill(name, targetDir) {
   mkdirp(targetDir);
   const skillSrc = path.join(SKILLS_SRC, name, 'SKILL.md');
   const templateSrc = path.join(SKILLS_SRC, name, 'template.md');
-  fs.writeFileSync(path.join(targetDir, 'SKILL.md'), stripClaudeFrontmatter(fs.readFileSync(skillSrc, 'utf8')));
+  const body = addSessionContextNote(stripClaudeFrontmatter(fs.readFileSync(skillSrc, 'utf8')));
+  fs.writeFileSync(path.join(targetDir, 'SKILL.md'), body);
   if (fs.existsSync(templateSrc)) {
     fs.copyFileSync(templateSrc, path.join(targetDir, 'template.md'));
   }
@@ -140,7 +159,7 @@ function installCursor(projectRoot) {
   for (const name of listSkillDirs()) {
     const skillMd = fs.readFileSync(path.join(SKILLS_SRC, name, 'SKILL.md'), 'utf8');
     const description = readFrontmatterValue(skillMd, 'description') || `${name} skill`;
-    const body = stripClaudeFrontmatter(skillMd);
+    const body = addSessionContextNote(stripClaudeFrontmatter(skillMd));
     const out = `---\ndescription: ${description}\nalwaysApply: false\n---\n${body}`;
     const outPath = path.join(targetDir, `${name}.mdc`);
     fs.writeFileSync(outPath, out);

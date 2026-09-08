@@ -41,6 +41,22 @@ strip_claude_frontmatter() {
   ' "$src"
 }
 
+# Claude Code pre-runs the `!`command`` lines under "## Session context" and
+# substitutes their output before the model ever sees the file. Other agents
+# just see the literal "!`date +%F`" text, since they don't pre-execute
+# anything. Insert an explicit instruction telling the agent to run those
+# commands itself, right after the heading, reading stdin/stdout so it can
+# be piped after strip_claude_frontmatter.
+add_session_context_note() {
+  awk '
+    { print }
+    /^## Session context[[:space:]]*$/ {
+      print ""
+      print "Claude Code pre-runs the commands below (the lines starting with `!`) and substitutes their real output before this reaches the model. Your agent likely does not do that automatically — if you are reading literal shell syntax instead of real output, run each of those commands yourself right now (via your shell/terminal tool) before continuing, and use the actual output as the context it describes."
+    }
+  '
+}
+
 install_claude() {
   echo "Agent: claude -> symlinking into $PROJECT_ROOT/.claude/skills"
   "$REPO_ROOT/scripts/link-skills.sh" --project
@@ -60,7 +76,7 @@ install_cursor() {
       echo "alwaysApply: false"
       echo "---"
       echo
-      strip_claude_frontmatter "$skill_dir/SKILL.md"
+      strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note
     } > "$out"
     echo "Agent: cursor -> wrote $out (invoke with @$name)"
   done
@@ -85,7 +101,7 @@ install_codex() {
     local name; name="$(basename "$skill_dir")"
     local out_dir="$target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
     if ! grep -q "\.codex/skills/$name/SKILL.md" "$agents_md" 2>/dev/null; then
       echo "- \`$name\`: see \`.codex/skills/$name/SKILL.md\`" >> "$agents_md"
@@ -102,7 +118,7 @@ install_antigravity() {
     local name; name="$(basename "$skill_dir")"
     local out_dir="$target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
     echo "Agent: antigravity -> wrote $out_dir/SKILL.md"
   done
@@ -127,7 +143,7 @@ install_gemini() {
     local name; name="$(basename "$skill_dir")"
     local out_dir="$target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
     if ! grep -q "\.gemini/skills/$name/SKILL.md" "$gemini_md" 2>/dev/null; then
       echo "- \`$name\`: see \`.gemini/skills/$name/SKILL.md\`" >> "$gemini_md"
