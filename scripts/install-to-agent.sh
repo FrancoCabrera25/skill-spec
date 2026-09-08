@@ -111,7 +111,10 @@ install_codex() {
 }
 
 install_antigravity() {
-  local target="$PROJECT_ROOT/.antigravity/skills"
+  # Confirmed workspace path: <workspace-root>/.agents/skills/ (Antigravity's
+  # current default; .agent/skills/ is kept only for backward compat by
+  # Antigravity itself — we don't need to write both). NOT .antigravity/skills.
+  local target="$PROJECT_ROOT/.agents/skills"
   mkdir -p "$target"
   for skill_dir in "$SKILLS_SRC"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
@@ -124,9 +127,20 @@ install_antigravity() {
   done
 }
 
+# Escapes backslashes and double quotes for a TOML basic string.
+toml_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 install_gemini() {
-  local target="$PROJECT_ROOT/.gemini/skills"
-  mkdir -p "$target"
+  # Gemini CLI has no SKILL.md / Agent Skills support at all — the only way
+  # to get an invokable `/spec-draft` is a TOML file under .gemini/commands/.
+  # We keep the instructions in .gemini/skills/<name>/SKILL.md as the single
+  # source of truth and have the command's `prompt` pull it in via Gemini's
+  # own @{path} file-injection syntax.
+  local skills_target="$PROJECT_ROOT/.gemini/skills"
+  local commands_target="$PROJECT_ROOT/.gemini/commands"
+  mkdir -p "$skills_target" "$commands_target"
   local gemini_md="$PROJECT_ROOT/GEMINI.md"
   [ -f "$gemini_md" ] || : > "$gemini_md"
 
@@ -141,14 +155,22 @@ install_gemini() {
   for skill_dir in "$SKILLS_SRC"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
     local name; name="$(basename "$skill_dir")"
-    local out_dir="$target/$name"
+    local out_dir="$skills_target/$name"
     mkdir -p "$out_dir"
     strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
-    if ! grep -q "\.gemini/skills/$name/SKILL.md" "$gemini_md" 2>/dev/null; then
-      echo "- \`$name\`: see \`.gemini/skills/$name/SKILL.md\`" >> "$gemini_md"
+
+    local description; description=$(sed -n 's/^description:[[:space:]]*//p' "$skill_dir/SKILL.md" | head -n1)
+    local rel_skill_path=".gemini/skills/$name/SKILL.md"
+    {
+      printf 'description = "%s"\n' "$(toml_escape "${description:-$name skill}")"
+      printf 'prompt = "@{%s}"\n' "$rel_skill_path"
+    } > "$commands_target/$name.toml"
+
+    if ! grep -q "$rel_skill_path" "$gemini_md" 2>/dev/null; then
+      echo "- \`/$name\`: see \`$rel_skill_path\`" >> "$gemini_md"
     fi
-    echo "Agent: gemini -> wrote $out_dir/SKILL.md, referenced from GEMINI.md"
+    echo "Agent: gemini -> wrote $commands_target/$name.toml (invoke with /$name)"
   done
 }
 

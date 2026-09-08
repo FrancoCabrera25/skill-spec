@@ -187,15 +187,54 @@ function installAgentsMdStyle(projectRoot, { skillsSubdir, memoryFile }) {
 }
 
 function installCodex(projectRoot) {
+  // Codex CLI scans .codex/skills/*/SKILL.md itself at session startup and
+  // loads skills automatically based on their description — confirmed
+  // against developers.openai.com/codex/skills. The AGENTS.md block below
+  // is not what makes discovery work; it's kept as human-readable pointer
+  // context, same as it is for Gemini.
   installAgentsMdStyle(projectRoot, { skillsSubdir: '.codex/skills', memoryFile: 'AGENTS.md' });
 }
 
+function tomlEscape(str) {
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function installGemini(projectRoot) {
-  installAgentsMdStyle(projectRoot, { skillsSubdir: '.gemini/skills', memoryFile: 'GEMINI.md' });
+  // Gemini CLI has no SKILL.md / Agent Skills support at all — confirmed
+  // against the official custom-commands docs. The only way to get an
+  // invokable `/spec-draft` is a TOML file under .gemini/commands/. We keep
+  // the actual instructions in .gemini/skills/<name>/SKILL.md as the single
+  // source of truth and have the command's `prompt` pull it in via Gemini's
+  // own @{path} file-injection syntax, so nothing is duplicated by hand.
+  const skillsBase = path.join(projectRoot, '.gemini', 'skills');
+  const commandsDir = path.join(projectRoot, '.gemini', 'commands');
+  mkdirp(commandsDir);
+  const memoryPath = path.join(projectRoot, 'GEMINI.md');
+  if (!fs.existsSync(memoryPath)) fs.writeFileSync(memoryPath, '');
+  let memory = fs.readFileSync(memoryPath, 'utf8');
+  if (!/^## Skills$/m.test(memory)) {
+    memory += `${memory.endsWith('\n') || memory === '' ? '' : '\n'}\n## Skills\n\n`;
+  }
+  for (const name of listSkillDirs()) {
+    const skillMd = fs.readFileSync(path.join(SKILLS_SRC, name, 'SKILL.md'), 'utf8');
+    const description = readFrontmatterValue(skillMd, 'description') || `${name} skill`;
+    writeStrippedSkill(name, path.join(skillsBase, name));
+    const relSkillPath = `.gemini/skills/${name}/SKILL.md`;
+    const toml = `description = "${tomlEscape(description)}"\nprompt = "@{${relSkillPath}}"\n`;
+    const outPath = path.join(commandsDir, `${name}.toml`);
+    fs.writeFileSync(outPath, toml);
+    const bullet = `- \`/${name}\`: see \`${relSkillPath}\``;
+    if (!memory.includes(relSkillPath)) memory = memory.trimEnd() + '\n' + bullet + '\n';
+    console.log(`  gemini       -> ${path.relative(projectRoot, outPath)} (invocar con /${name})`);
+  }
+  fs.writeFileSync(memoryPath, memory);
 }
 
 function installAntigravity(projectRoot) {
-  const targetBase = path.join(projectRoot, '.antigravity', 'skills');
+  // Confirmed workspace path: <workspace-root>/.agents/skills/ (Antigravity's
+  // current default; .agent/skills/ is kept only for backward compat by
+  // Antigravity itself, we don't need to write both).
+  const targetBase = path.join(projectRoot, '.agents', 'skills');
   for (const name of listSkillDirs()) {
     const dest = path.join(targetBase, name);
     writeStrippedSkill(name, dest);

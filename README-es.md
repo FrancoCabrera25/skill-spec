@@ -225,17 +225,21 @@ correspondientes. Flags para uso no interactivo:
 npx github:FrancoCabrera25/skill-spec --agent=<agente> [--dir=/ruta/al/proyecto] [--yes]
 ```
 
-| Agente | Qué escribe |
-| --- | --- |
-| `claude` | Symlink de cada skill a `.claude/skills/` (por proyecto) |
-| `cursor` | Genera `.cursor/rules/spec-draft.mdc` y `spec-impl.mdc` — se invocan con `@spec-draft`, `@spec-impl` |
-| `codex` | Agrega un bloque `## Skills` a `AGENTS.md` y copia el cuerpo de cada skill a `.codex/skills/` |
-| `antigravity` | Copia el cuerpo de cada skill a `.antigravity/skills/` |
-| `gemini` | Agrega un bloque `## Skills` a `GEMINI.md` y copia el cuerpo de cada skill a `.gemini/skills/` |
+| Agente | Dónde lo descubre realmente | Qué escribe el instalador |
+| --- | --- | --- |
+| `claude` | Symlink a `.claude/skills/` — el path oficial de Agent Skills para Claude Code | `.claude/skills/spec-draft`, `.claude/skills/spec-impl` |
+| `cursor` | Cursor no tiene soporte de Agent Skills; cada skill se convierte en una regla de proyecto | `.cursor/rules/spec-draft.mdc`, `spec-impl.mdc` (frontmatter: `description`, `alwaysApply: false`) — se invocan con `@spec-draft`, `@spec-impl` |
+| `codex` | Codex CLI escanea `.codex/skills/*/SKILL.md` solo, al arrancar la sesión, y carga las skills por su descripción — no necesita registro extra | `.codex/skills/spec-draft/SKILL.md`, `spec-impl/SKILL.md` (más un bloque de referencia en `AGENTS.md` para humanos) |
+| `antigravity` | El path de skills de workspace actual de Antigravity es `.agents/skills/` (no `.antigravity/skills/`) | `.agents/skills/spec-draft/SKILL.md`, `spec-impl/SKILL.md` |
+| `gemini` | Gemini CLI tampoco tiene soporte de Agent Skills — solo comandos custom en TOML bajo `.gemini/commands/` | `.gemini/commands/spec-draft.toml`, `spec-impl.toml` (cada `prompt` trae `.gemini/skills/<name>/SKILL.md` vía la sintaxis de inyección de archivo `@{path}` de Gemini) — se invocan con `/spec-draft`, `/spec-impl` |
 
 Los campos de frontmatter específicos de Claude Code (`argument-hint`,
 `disable-model-invocation`, `allowed-tools`) se sacan para el resto de los
-agentes; las instrucciones de la skill se copian tal cual.
+agentes; las instrucciones de la skill se copian tal cual. Cursor y Gemini
+CLI no tienen ningún estándar nativo de Agent Skills, así que esos dos se
+adaptan al mecanismo de extensión propio de cada herramienta (una regla, un
+comando slash) en vez de una copia plana del archivo — verificado contra la
+documentación oficial de cada agente, no asumido.
 
 Para que el método funcione también necesitás una carpeta `specs/` en la
 raíz de tu proyecto — `spec-draft` la crea (con `.spec-config.yml`) la
