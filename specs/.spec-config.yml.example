@@ -1,0 +1,16 @@
+# spec workflow configuration
+#
+# Copy this file to specs/.spec-config.yml to customize it. If you don't,
+# spec-draft creates it automatically the first time you run it, with these
+# same defaults.
+
+# AutoCreateBranch — controls whether spec-impl creates the git branch automatically.
+#   true  (default) → spec-impl creates and switches to spec-NN-slug without asking
+#   false            → spec-impl asks for [y/N] confirmation before creating the branch
+AutoCreateBranch: true
+
+# Language — controls which language spec-draft and spec-impl reply in.
+#   auto (default) → mirror the language of each command's initial prompt
+#   es              → always reply in Spanish
+#   en              → always reply in English
+Language: auto
