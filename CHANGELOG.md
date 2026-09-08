@@ -12,6 +12,16 @@ keeps that easy.
 
 ## [Unreleased]
 
+### Added
+
+- Interactive installer: `npx github:FrancoCabrera25/skill-spec` asks which
+  AI agent to install into (Claude Code, Cursor, Codex, Antigravity, Gemini
+  CLI, or all of them) and configures the matching files — no npm publish
+  required, `npx github:owner/repo` runs `bin/install.js` straight from the
+  cloned repo. Supports `--agent=`, `--dir=`, and `--yes` for non-interactive
+  use. `scripts/install-to-agent.sh` stays available as a non-interactive,
+  dependency-free alternative.
+
 ## [0.1.0] - 2026-09-08
 
 ### Added

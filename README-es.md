@@ -15,9 +15,17 @@
 ## Inicio rápido
 
 ```bash
-git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
 cd ~/tu-proyecto
-~/.skill-spec/scripts/install-to-agent.sh claude   # o: cursor | codex | antigravity | gemini
+npx github:FrancoCabrera25/skill-spec
+```
+
+Pregunta interactivamente en qué agente de IA vas a instalar (Claude Code,
+Cursor, Codex, Antigravity, Gemini CLI, o todos) y configura los archivos
+correspondientes. Sin publicar a npm, sin instalación global — `npx
+github:owner/repo` clona el repo y lo corre ahí mismo. Modo no interactivo:
+
+```bash
+npx github:FrancoCabrera25/skill-spec --agent=cursor
 ```
 
 ## Skills
@@ -39,7 +47,6 @@ cd ~/tu-proyecto
 - [Instalación](#instalación)
 - [Uso](#uso)
 - [Configuración](#configuración)
-- [Diferencias con fernando-skills](#diferencias-con-fernando-skills)
 - [Licencia](#licencia)
 
 ---
@@ -65,10 +72,7 @@ seis meses.
 
 La idea viene de la práctica clásica de "spec antes que código" en
 ingeniería de software, afilada para un mundo donde un agente de IA puede
-escribir el código en segundos: para más contexto sobre el método en sí,
-independiente de cualquier herramienta puntual, ver [esta nota sobre qué es
-el spec-driven development, de dónde viene y por qué
-importa](https://scrummanager.com/community/spec-driven-development-qu-es-de-dnde-viene-y-por-qu-importa).
+escribir el código en segundos.
 
 ## El problema que resuelve
 
@@ -206,38 +210,20 @@ Esto tiene un costo — no se aplica a todo.
 
 ## Instalación
 
-### Claude Code
+### Recomendado: `npx`
 
 ```bash
-git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
 cd ~/tu-proyecto
-~/.skill-spec/scripts/install-to-agent.sh claude
+npx github:FrancoCabrera25/skill-spec
 ```
 
-O manualmente:
+Pregunta interactivamente en qué agente instalar — `claude`, `cursor`,
+`codex`, `antigravity`, `gemini`, o `all` — y escribe los archivos
+correspondientes. Flags para uso no interactivo:
 
 ```bash
-# Personal (todos tus proyectos)
-mkdir -p ~/.claude/skills
-cp -r skills/engineering/spec-draft ~/.claude/skills/
-cp -r skills/engineering/spec-impl ~/.claude/skills/
-
-# O por proyecto (versionado en git)
-mkdir -p .claude/skills
-cp -r skills/engineering/spec-draft .claude/skills/
-cp -r skills/engineering/spec-impl .claude/skills/
+npx github:FrancoCabrera25/skill-spec --agent=<agente> [--dir=/ruta/al/proyecto] [--yes]
 ```
-
-### Cursor, Codex, Antigravity, Gemini CLI
-
-```bash
-git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
-cd ~/tu-proyecto
-~/.skill-spec/scripts/install-to-agent.sh <agente>
-```
-
-`<agente>` es uno de `cursor`, `codex`, `antigravity`, `gemini` — siempre
-explícito, el script no intenta adivinar qué agente estás corriendo.
 
 | Agente | Qué escribe |
 | --- | --- |
@@ -257,7 +243,32 @@ primera vez que la corrés, o la podés crear vos:
 
 ```bash
 mkdir specs
-cp ~/.skill-spec/specs/.spec-config.yml.example specs/.spec-config.yml   # opcional, spec-draft siembra los defaults igual
+```
+
+### Alternativa: clonar + script (manual, scripteable, sin Node)
+
+```bash
+git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
+cd ~/tu-proyecto
+~/.skill-spec/scripts/install-to-agent.sh <agente>   # claude | cursor | codex | antigravity | gemini
+```
+
+Mismo resultado que el flujo `npx`, no interactivo — útil para scripts o CI,
+o si preferís no correr Node. `<agente>` siempre es explícito; el script no
+intenta adivinar qué agente estás corriendo.
+
+O, para Claude Code puntualmente, copiar las carpetas de las skills a mano:
+
+```bash
+# Personal (todos tus proyectos)
+mkdir -p ~/.claude/skills
+cp -r skills/engineering/spec-draft ~/.claude/skills/
+cp -r skills/engineering/spec-impl ~/.claude/skills/
+
+# O por proyecto (versionado en git)
+mkdir -p .claude/skills
+cp -r skills/engineering/spec-draft .claude/skills/
+cp -r skills/engineering/spec-impl .claude/skills/
 ```
 
 ## Uso
@@ -303,19 +314,12 @@ Language: auto           # auto | es | en — ver abajo
   entradas de changelog en el mismo idioma sin importar quién esté
   escribiendo ese día.
 
-## Diferencias con fernando-skills
+## Decisiones de diseño que vale la pena resaltar
 
-Este pack se construye sobre el mismo método base que
-[`Klerith/fernando-skills`](https://github.com/Klerith/fernando-skills) (el
-flujo de diseño en cuatro fases, `specs/NN-slug.md`, el chequeo de estado
-que no depende del idioma, la regla de nunca commitear solo) — crédito a ese
-repo por el diseño base. Sobre eso:
-
-- **`spec-impl` cierra el círculo.** El `/spec-impl` de fernando-skills se
-  corta después del último paso de implementación; la Fase 5 de este pack
-  verifica los criterios de aceptación, propone un bump de SemVer, escribe
-  la entrada en `CHANGELOG.md` y marca el spec como `Implemented` antes de
-  devolver el control.
+- **`spec-impl` cierra el círculo**, no se corta después del último paso de
+  implementación. La Fase 5 verifica los criterios de aceptación, propone
+  un bump de SemVer, escribe la entrada en `CHANGELOG.md` y marca el spec
+  como `Implemented` antes de devolver el control.
 - **Idioma configurable**, no solo auto-espejado. `Language: es|en` en
   `specs/.spec-config.yml` fija el idioma para todo un equipo/proyecto.
 - **Índice de specs vivo.** `specs/README.md` lo mantienen actualizado las
@@ -324,15 +328,11 @@ repo por el diseño base. Sobre eso:
   `spec-draft`, no solo un consejo en una lista de "errores comunes".
 - **Campo `Supersedes`** en el header, junto a `Depends on`, para trazar qué
   spec reemplaza a uno anterior.
-- **Soporte para Gemini CLI** sumado al instalador multi-agente, junto a
-  Claude Code, Cursor, Codex y Antigravity.
-- **Nombres de comando distintos** (`spec-draft` / `spec-impl` en vez de
-  `/spec` / `/spec-impl`) para poder distinguir los dos packs fácil si
-  tenés ambos instalados.
-- **Sin automatización de releases para este propio repo.**
-  Deliberadamente más simple que el setup de CI con release-please y
-  Conventional Commits de fernando-skills — el `CHANGELOG.md` de este repo
-  se mantiene a mano, para que sea fácil de forkear.
+- **Multi-agente desde el día uno**: Claude Code, Cursor, Codex, Antigravity
+  y Gemini CLI.
+- **Sin automatización de releases para este propio repo.** El
+  `CHANGELOG.md` se mantiene a mano, a propósito, para que sea fácil de
+  forkear.
 
 ## Licencia
 
