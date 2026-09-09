@@ -1,0 +1,22 @@
+{
+  "name": "skill-spec",
+  "version": "0.1.0",
+  "description": "Spec-driven design skills (spec-draft, spec-impl) for Claude Code, Cursor, Codex, Antigravity, and Gemini CLI.",
+  "license": "MIT",
+  "bin": {
+    "skill-spec-install": "bin/install.js"
+  },
+  "files": [
+    "bin",
+    "skills",
+    "specs/README.md",
+    "specs/.spec-config.yml.example"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FrancoCabrera25/skill-spec"
+  }
+}

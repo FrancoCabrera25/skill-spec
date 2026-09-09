@@ -15,9 +15,17 @@
 ## Quick start
 
 ```bash
-git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
 cd ~/your-project
-~/.skill-spec/scripts/install-to-agent.sh claude   # or: cursor | codex | antigravity | gemini
+npx github:FrancoCabrera25/skill-spec
+```
+
+It asks which AI agent you're installing into (Claude Code, Cursor, Codex,
+Antigravity, Gemini CLI, or all of them) and configures the right files for
+that agent. No npm publish, no global install — `npx github:owner/repo`
+clones the repo and runs it on the spot. Non-interactive:
+
+```bash
+npx github:FrancoCabrera25/skill-spec --agent=cursor
 ```
 
 ## Skills
@@ -39,7 +47,6 @@ cd ~/your-project
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
-- [Differences from fernando-skills](#differences-from-fernando-skills)
 - [License](#license)
 
 ---
@@ -64,9 +71,7 @@ log — the answer to "why does this work this way?" six months from now.
 
 The idea traces back to plain old "spec before code" software engineering
 practice, sharpened for a world where an AI agent can write the code in
-seconds: see [this overview of spec-driven development, what it is, where it
-comes from, and why it matters](https://scrummanager.com/community/spec-driven-development-qu-es-de-dnde-viene-y-por-qu-importa)
-for more background on the method itself, independent of any specific tool.
+seconds.
 
 ## The problem it solves
 
@@ -201,15 +206,57 @@ This has a cost — don't apply it to everything.
 
 ## Installation
 
-### Claude Code
+### Recommended: `npx`
+
+```bash
+cd ~/your-project
+npx github:FrancoCabrera25/skill-spec
+```
+
+Asks interactively which agent to install into — `claude`, `cursor`,
+`codex`, `antigravity`, `gemini`, or `all` — and writes the right files for
+it. Flags for non-interactive use:
+
+```bash
+npx github:FrancoCabrera25/skill-spec --agent=<agent> [--dir=/path/to/project] [--yes]
+```
+
+| Agent | Where it actually gets discovered | What the installer writes |
+| --- | --- | --- |
+| `claude` | Symlinks each skill into `.claude/skills/` — the official Agent Skills location for Claude Code | `.claude/skills/spec-draft`, `.claude/skills/spec-impl` |
+| `cursor` | Cursor has no Agent Skills support; each skill becomes a project rule | `.cursor/rules/spec-draft.mdc`, `spec-impl.mdc` (frontmatter: `description`, `alwaysApply: false`) — invoke with `@spec-draft`, `@spec-impl` |
+| `codex` | Codex CLI scans `.codex/skills/*/SKILL.md` itself at session startup and loads skills by description — no extra registration needed | `.codex/skills/spec-draft/SKILL.md`, `spec-impl/SKILL.md` (plus a pointer block in `AGENTS.md` for humans) |
+| `antigravity` | Antigravity's current workspace skills path is `.agents/skills/` (not `.antigravity/skills/`) | `.agents/skills/spec-draft/SKILL.md`, `spec-impl/SKILL.md` |
+| `gemini` | Gemini CLI has no Agent Skills support either — only TOML custom commands under `.gemini/commands/` | `.gemini/commands/spec-draft.toml`, `spec-impl.toml` (each `prompt` pulls in `.gemini/skills/<name>/SKILL.md` via Gemini's `@{path}` file-injection syntax) — invoke with `/spec-draft`, `/spec-impl` |
+
+Frontmatter fields specific to Claude Code (`argument-hint`,
+`disable-model-invocation`, `allowed-tools`) are dropped for every other
+agent; the skill's actual instructions are copied as-is. Cursor and Gemini
+CLI have no native Agent Skills standard at all, so those two get adapted to
+each tool's own extension mechanism (a rule, a slash command) instead of a
+plain file copy — verified against each agent's official docs, not assumed.
+
+For the method to work you also need a `specs/` folder at your project
+root — `spec-draft` creates it (with `.spec-config.yml`) the first time you
+run it, or you can create it yourself:
+
+```bash
+mkdir specs
+```
+
+### Alternative: clone + script (manual, scriptable, no Node needed)
 
 ```bash
 git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
 cd ~/your-project
-~/.skill-spec/scripts/install-to-agent.sh claude
+~/.skill-spec/scripts/install-to-agent.sh <agent>   # claude | cursor | codex | antigravity | gemini
 ```
 
-Or manually:
+Same result as the `npx` flow, non-interactive — useful for scripting or CI,
+or if you'd rather not run Node. `<agent>` is always explicit; the script
+does not try to guess which agent you're running.
+
+Or, for Claude Code specifically, copy the skill folders by hand:
 
 ```bash
 # Personal (all your projects)
@@ -221,38 +268,6 @@ cp -r skills/engineering/spec-impl ~/.claude/skills/
 mkdir -p .claude/skills
 cp -r skills/engineering/spec-draft .claude/skills/
 cp -r skills/engineering/spec-impl .claude/skills/
-```
-
-### Cursor, Codex, Antigravity, Gemini CLI
-
-```bash
-git clone https://github.com/francocabrera25/skill-spec ~/.skill-spec
-cd ~/your-project
-~/.skill-spec/scripts/install-to-agent.sh <agent>
-```
-
-`<agent>` is one of `cursor`, `codex`, `antigravity`, `gemini` — always
-explicit, the script does not try to guess which agent you're running.
-
-| Agent | What gets written |
-| --- | --- |
-| `claude` | Symlinks each skill into `.claude/skills/` (project-scoped) |
-| `cursor` | Generates `.cursor/rules/spec-draft.mdc` and `spec-impl.mdc` — invoke with `@spec-draft`, `@spec-impl` |
-| `codex` | Adds a `## Skills` block to `AGENTS.md` and copies skill bodies into `.codex/skills/` |
-| `antigravity` | Copies skill bodies into `.antigravity/skills/` |
-| `gemini` | Adds a `## Skills` block to `GEMINI.md` and copies skill bodies into `.gemini/skills/` |
-
-Frontmatter fields specific to Claude Code (`argument-hint`,
-`disable-model-invocation`, `allowed-tools`) are dropped for every other
-agent; the skill's actual instructions are copied as-is.
-
-For the method to work you also need a `specs/` folder at your project
-root — `spec-draft` creates it (with `.spec-config.yml`) the first time you
-run it, or you can create it yourself:
-
-```bash
-mkdir specs
-cp ~/.skill-spec/specs/.spec-config.yml.example specs/.spec-config.yml   # optional, spec-draft seeds defaults anyway
 ```
 
 ## Usage
@@ -295,18 +310,14 @@ Language: auto           # auto | es | en — see below
   is written, useful for a team that wants every spec and every changelog
   entry in the same language no matter who's typing that day.
 
-## Differences from fernando-skills
+## Design highlights
 
-This pack is built on the same core method as
-[`Klerith/fernando-skills`](https://github.com/Klerith/fernando-skills) (the
-four-phase design flow, `specs/NN-slug.md`, language-agnostic state
-matching, never-commit-automatically) — credit to it for the base design.
-On top of that:
+A few things this pack does deliberately, worth calling out on their own:
 
-- **`spec-impl` closes the loop.** Fernando-skills' `/spec-impl` stops after
-  the last implementation step; this pack's Phase 5 verifies acceptance
-  criteria, proposes a SemVer bump, writes the `CHANGELOG.md` entry, and
-  marks the spec `Implemented` before handing control back.
+- **`spec-impl` closes the loop**, it doesn't stop at the last implementation
+  step. Phase 5 verifies acceptance criteria, proposes a SemVer bump, writes
+  the `CHANGELOG.md` entry, and marks the spec `Implemented` before handing
+  control back.
 - **Configurable language**, not just auto-mirrored. `Language: es|en` in
   `specs/.spec-config.yml` pins the language for a whole team/project.
 - **A live spec index.** `specs/README.md` is kept up to date by both
@@ -315,14 +326,10 @@ On top of that:
   advice in a "common mistakes" list.
 - **`Supersedes`** header field, alongside `Depends on`, to trace which
   spec replaces an older one.
-- **Gemini CLI support** added to the multi-agent installer, alongside
-  Claude Code, Cursor, Codex, and Antigravity.
-- **Different command names** (`spec-draft` / `spec-impl` vs. `/spec` /
-  `/spec-impl`) to keep the two packs easy to tell apart if you have both
-  installed.
-- **No release automation for this repo itself.** Deliberately simpler than
-  fernando-skills' release-please/Conventional-Commits CI setup — this repo's
-  own `CHANGELOG.md` is maintained by hand, to keep it easy to fork.
+- **Multi-agent from day one**: Claude Code, Cursor, Codex, Antigravity, and
+  Gemini CLI.
+- **No release automation for this repo itself.** The `CHANGELOG.md` is
+  maintained by hand, on purpose, to keep this easy to fork.
 
 ## License
 

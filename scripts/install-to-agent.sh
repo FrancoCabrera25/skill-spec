@@ -41,6 +41,22 @@ strip_claude_frontmatter() {
   ' "$src"
 }
 
+# Claude Code pre-runs the `!`command`` lines under "## Session context" and
+# substitutes their output before the model ever sees the file. Other agents
+# just see the literal "!`date +%F`" text, since they don't pre-execute
+# anything. Insert an explicit instruction telling the agent to run those
+# commands itself, right after the heading, reading stdin/stdout so it can
+# be piped after strip_claude_frontmatter.
+add_session_context_note() {
+  awk '
+    { print }
+    /^## Session context[[:space:]]*$/ {
+      print ""
+      print "Claude Code pre-runs the commands below (the lines starting with `!`) and substitutes their real output before this reaches the model. Your agent likely does not do that automatically — if you are reading literal shell syntax instead of real output, run each of those commands yourself right now (via your shell/terminal tool) before continuing, and use the actual output as the context it describes."
+    }
+  '
+}
+
 install_claude() {
   echo "Agent: claude -> symlinking into $PROJECT_ROOT/.claude/skills"
   "$REPO_ROOT/scripts/link-skills.sh" --project
@@ -60,7 +76,7 @@ install_cursor() {
       echo "alwaysApply: false"
       echo "---"
       echo
-      strip_claude_frontmatter "$skill_dir/SKILL.md"
+      strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note
     } > "$out"
     echo "Agent: cursor -> wrote $out (invoke with @$name)"
   done
@@ -85,7 +101,7 @@ install_codex() {
     local name; name="$(basename "$skill_dir")"
     local out_dir="$target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
     if ! grep -q "\.codex/skills/$name/SKILL.md" "$agents_md" 2>/dev/null; then
       echo "- \`$name\`: see \`.codex/skills/$name/SKILL.md\`" >> "$agents_md"
@@ -95,22 +111,36 @@ install_codex() {
 }
 
 install_antigravity() {
-  local target="$PROJECT_ROOT/.antigravity/skills"
+  # Confirmed workspace path: <workspace-root>/.agents/skills/ (Antigravity's
+  # current default; .agent/skills/ is kept only for backward compat by
+  # Antigravity itself — we don't need to write both). NOT .antigravity/skills.
+  local target="$PROJECT_ROOT/.agents/skills"
   mkdir -p "$target"
   for skill_dir in "$SKILLS_SRC"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
     local name; name="$(basename "$skill_dir")"
     local out_dir="$target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
     echo "Agent: antigravity -> wrote $out_dir/SKILL.md"
   done
 }
 
+# Escapes backslashes and double quotes for a TOML basic string.
+toml_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 install_gemini() {
-  local target="$PROJECT_ROOT/.gemini/skills"
-  mkdir -p "$target"
+  # Gemini CLI has no SKILL.md / Agent Skills support at all — the only way
+  # to get an invokable `/spec-draft` is a TOML file under .gemini/commands/.
+  # We keep the instructions in .gemini/skills/<name>/SKILL.md as the single
+  # source of truth and have the command's `prompt` pull it in via Gemini's
+  # own @{path} file-injection syntax.
+  local skills_target="$PROJECT_ROOT/.gemini/skills"
+  local commands_target="$PROJECT_ROOT/.gemini/commands"
+  mkdir -p "$skills_target" "$commands_target"
   local gemini_md="$PROJECT_ROOT/GEMINI.md"
   [ -f "$gemini_md" ] || : > "$gemini_md"
 
@@ -125,14 +155,22 @@ install_gemini() {
   for skill_dir in "$SKILLS_SRC"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
     local name; name="$(basename "$skill_dir")"
-    local out_dir="$target/$name"
+    local out_dir="$skills_target/$name"
     mkdir -p "$out_dir"
-    strip_claude_frontmatter "$skill_dir/SKILL.md" > "$out_dir/SKILL.md"
+    strip_claude_frontmatter "$skill_dir/SKILL.md" | add_session_context_note > "$out_dir/SKILL.md"
     [ -f "$skill_dir/template.md" ] && cp "$skill_dir/template.md" "$out_dir/template.md"
-    if ! grep -q "\.gemini/skills/$name/SKILL.md" "$gemini_md" 2>/dev/null; then
-      echo "- \`$name\`: see \`.gemini/skills/$name/SKILL.md\`" >> "$gemini_md"
+
+    local description; description=$(sed -n 's/^description:[[:space:]]*//p' "$skill_dir/SKILL.md" | head -n1)
+    local rel_skill_path=".gemini/skills/$name/SKILL.md"
+    {
+      printf 'description = "%s"\n' "$(toml_escape "${description:-$name skill}")"
+      printf 'prompt = "@{%s}"\n' "$rel_skill_path"
+    } > "$commands_target/$name.toml"
+
+    if ! grep -q "$rel_skill_path" "$gemini_md" 2>/dev/null; then
+      echo "- \`/$name\`: see \`$rel_skill_path\`" >> "$gemini_md"
     fi
-    echo "Agent: gemini -> wrote $out_dir/SKILL.md, referenced from GEMINI.md"
+    echo "Agent: gemini -> wrote $commands_target/$name.toml (invoke with /$name)"
   done
 }
 
